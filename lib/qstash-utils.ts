@@ -31,5 +31,8 @@ export async function scheduleJob({
     })
   }
 
-  throw new Error('Either delay or cron must be provided')
+  return await qstash.publishJSON({
+    url,
+    body,
+  })
 } 
