@@ -19,7 +19,6 @@ export async function assistantThreadMessage(
     text: "Hello! I'm your AI assistant. I can help you with:\n" +
           "• Scheduling messages\n" +
           "• Web searches\n" +
-          "• Weather information\n" +
           "• And more!\n\n" +
           "Just ask me what you need help with!",
   });
@@ -36,10 +35,6 @@ export async function assistantThreadMessage(
         title: "Search the web",
         message: "What's the latest news about AI technology?",
       },
-      {
-        title: "Get weather",
-        message: "What's the weather like in New York right now?",
-      },
     ],
   });
 }
@@ -53,14 +48,15 @@ export async function handleNewAssistantMessage(
   // Skip bot messages and messages without text
   if (
     event.bot_id ||
-    event.bot_id === botUserId ||
     event.bot_profile ||
-    !event.text
+    !event.text ||
+    (event.subtype === 'message_changed' && event.message?.bot_id)
   ) {
     console.log('Skipping message:', { 
       bot_id: event.bot_id, 
       bot_profile: event.bot_profile,
-      has_text: !!event.text 
+      has_text: !!event.text,
+      subtype: event.subtype
     });
     return;
   }
@@ -74,28 +70,34 @@ export async function handleNewAssistantMessage(
     return;
   }
 
-  const updateStatus = updateStatusUtil(channel, thread_ts || event.ts);
-  await updateStatus("is thinking...");
+  const initialMessage = await client.chat.postMessage({
+    channel: channel,
+    thread_ts: thread_ts || event.ts,
+    text: "is thinking...",
+  });
+
+  if (!initialMessage || !initialMessage.ts)
+    throw new Error("Failed to post initial message");
+
+  const updateMessage = async (status: string) => {
+    await client.chat.update({
+      channel: channel,
+      ts: initialMessage.ts as string,
+      text: status,
+    });
+  };
 
   try {
     // Clean the message text by removing the bot mention
     const cleanText = text.replace(`<@${botUserId}>`, '').trim();
     console.log('Cleaned message text:', cleanText);
 
-    // Add context about the message type
-    const context = {
-      isDirectMessage: event.channel_type === 'im',
-      isThread: !!thread_ts,
-      channelType: event.channel_type,
-    };
-    console.log('Message context:', context);
-
     const messages: CoreMessage[] = thread_ts 
       ? await getThread(channel, thread_ts, botUserId)
       : [{ role: "user", content: cleanText }];
       
     console.log('Sending messages to AI:', JSON.stringify(messages, null, 2));
-    const result = await generateResponse(messages, updateStatus);
+    const result = await generateResponse(messages, updateMessage);
     console.log('AI response:', result);
     
     // Don't send empty messages
@@ -108,7 +110,6 @@ export async function handleNewAssistantMessage(
         unfurl_links: false,
       });
     } else {
-      // Add a typing indicator before sending the response
       await client.chat.postMessage({
         channel: channel,
         thread_ts: thread_ts || event.ts,
@@ -134,6 +135,6 @@ export async function handleNewAssistantMessage(
       unfurl_links: false,
     });
   } finally {
-    await updateStatus("");
+    await updateMessage("");
   }
 }

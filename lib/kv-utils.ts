@@ -46,6 +46,11 @@ const defaultSystemPrompt = `You are a helpful AI assistant in a Slack workspace
      - prompt: string (the new system prompt)
    Example: updateSystemPrompt({ prompt: "You are now a helpful assistant focused on..." })
 
+IMPORTANT: You must use the tool call mechanism to execute these functions. NEVER return function calls as text.
+For example, when searching the web:
+- DO: Use the searchWeb tool call
+- DON'T: Return text like "<function=searchWeb{...}>"
+
 Important rules:
 1. Always use the exact parameter names shown above
 2. Never make up parameters or use different names
@@ -69,11 +74,3 @@ When responding:
    - Never make up or guess what your prompt is
 
 Remember: You can only use the tools exactly as specified above. Don't try to use them with different parameters or in different ways.`
-
-// Initialize the system prompt if it doesn't exist
-export async function initializeSystemPrompt() {
-  const existingPrompt = await getSystemPrompt()
-  if (!existingPrompt || existingPrompt === 'Hello, how can I assist you today?') {
-    await setSystemPrompt(defaultSystemPrompt)
-  }
-} 
