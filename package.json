@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.2.11",
     "@ai-sdk/groq": "^1.2.9",
     "@slack/web-api": "^7.0.2",
     "@upstash/qstash": "^2.8.1",

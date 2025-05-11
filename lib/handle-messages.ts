@@ -50,7 +50,7 @@ export async function handleNewAssistantMessage(
     event.bot_id ||
     event.bot_profile ||
     !event.text ||
-    (event.subtype === 'message_changed' && event.message?.bot_id)
+    (event.subtype === 'message_changed' && 'message' in event && (event.message as GenericMessageEvent)?.bot_id)
   ) {
     console.log('Skipping message:', { 
       bot_id: event.bot_id, 
@@ -97,8 +97,15 @@ export async function handleNewAssistantMessage(
       : [{ role: "user", content: cleanText }];
       
     console.log('Sending messages to AI:', JSON.stringify(messages, null, 2));
-    const result = await generateResponse(messages, updateMessage);
+    let result = await generateResponse(messages, updateMessage);
     console.log('AI response:', result);
+    
+    // If the response contains a function call, retry the generation
+    if (result.includes('<function=')) {
+      console.log('Function call detected, retrying generation');
+      result = await generateResponse(messages, updateMessage);
+      console.log('Retry AI response:', result);
+    }
     
     // Don't send empty messages
     if (!result || result.trim() === '') {

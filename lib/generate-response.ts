@@ -1,4 +1,4 @@
-import { groq } from "@ai-sdk/groq";
+import { anthropic } from "@ai-sdk/anthropic";
 import { CoreMessage, generateText, tool } from "ai";
 import { z } from "zod";
 import { exa } from "./utils";
@@ -9,17 +9,15 @@ export const generateResponse = async (
   messages: CoreMessage[],
   updateStatus?: (status: string) => void,
 ) => {
-  console.log('Starting generateResponse with messages:', JSON.stringify(messages, null, 2));
-  
   const systemPrompt = await getSystemPrompt();
-  console.log('Retrieved system prompt:', systemPrompt);
 
   console.log('Generating text with AI...');
-  const { text } = await generateText({
-    model: groq("llama-3.3-70b-versatile"),
+  const { text, toolCalls, toolResults } = await generateText({
+    model: anthropic("claude-3-7-sonnet-20250219"),
     system: systemPrompt,
     messages,
     maxSteps: 10,
+    toolChoice: "auto",
     tools: {
       scheduleMessage: tool({
         description: "Schedule a message to be sent to a Slack channel at a later time",
@@ -31,9 +29,11 @@ export const generateResponse = async (
         }),
         execute: async ({ channel, message, delay, cron }) => {
           console.log('Executing scheduleMessage tool with args:', { channel, message, delay, cron });
-          updateStatus?.("is scheduling message...");
+          const url = `${process.env.HOST_URL}/api/scheduled`;
+          console.log('Scheduling message to:', url);
+          updateStatus?.("is scheduling message to ");
           const result = await scheduleJob({
-            url: `${process.env.VERCEL_URL}/api/scheduled`,
+            url: url,
             body: { channel, message },
             delay,
             cron,
@@ -59,6 +59,7 @@ export const generateResponse = async (
           query: z.string(),
           specificDomain: z
             .string()
+            .optional()
             .nullable()
             .describe(
               "a domain to search if the user specifies e.g. bbc.com. Should be only the domain name without the protocol",
@@ -85,6 +86,9 @@ export const generateResponse = async (
       }),
     },
   });
+
+  console.log('Tool calls:', toolCalls);
+  console.log('Tool results:', toolResults);
 
   // Convert markdown to Slack mrkdwn format
   return text.replace(/\[(.*?)\]\((.*?)\)/g, "<$2|$1>").replace(/\*\*/g, "*");

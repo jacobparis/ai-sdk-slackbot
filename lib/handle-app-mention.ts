@@ -48,7 +48,16 @@ export async function handleNewAppMention(
       ? await getThread(channel, thread_ts, botUserId)
       : [{ role: "user", content: cleanText }];
 
-    const result = await generateResponse(messages, updateMessage);
+    let attempts = 0;
+    let result = "";
+    while (attempts < 3) {
+      result = await generateResponse(messages, updateMessage);
+      if (!result.includes("<function") && result.trim() !== '') {
+        break;
+      }
+      attempts++;
+      await updateMessage("Retrying...");
+    }
     
     // Don't send empty messages
     if (!result || result.trim() === '') {
@@ -59,7 +68,10 @@ export async function handleNewAppMention(
         text: "I'm not sure how to respond to that. Could you try rephrasing your question?",
         unfurl_links: false,
       });
+    } else if (result.includes("<function")) {
+
     } else {
+
       await client.chat.postMessage({
         channel: channel,
         thread_ts: thread_ts || event.ts,
