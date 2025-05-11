@@ -41,22 +41,34 @@ pnpm install
 
 ### 3. Configure Slack App Settings
 
-#### Basic Information
+- Go to "Basic Information"
+   - Under "App Credentials", note down your "Signing Secret". This will be an environment variable `SLACK_SIGNING_SECRET`
+- Go to "App Home"
+  - Under Show Tabs -> Messages Tab, Enable "Allow users to send Slash commands and messages from the messages tab"
+- Go to "OAuth & Permissions"
+   - Add the following [Bot Token Scopes](https://api.slack.com/scopes):
+      - `app_mentions:read`
+      - `assistant:write`
+      - `chat:write`
+      - `im:history`
+      - `im:read`
+      - `im:write`
+   - Install the app to your workspace and note down the "Bot User OAuth Token" for the environment variable `SLACK_BOT_TOKEN`
 
-- Under "App Credentials", note down your "Signing Secret"
+- Go to "Event Subscriptions"
+   - Enable Events
+   - Set the Request URL to either
+      - your deployment URL: (e.g. `https://your-app.vercel.app/api/events`)
+      - or, for local development, use the tunnel URL from the [Local Development](./README.md#local-development) section below
+   - Under "Subscribe to bot events", add:
+      - `app_mention`
+      - `assistant_thread_started`
+      - `message:im`
+   - Save Changes
 
-#### OAuth & Permissions
+> Remember to include `/api/events` in the Request URL.
 
-- Add the following [Bot Token Scopes](https://api.slack.com/scopes):
-
-  - `app_mentions:read`
-  - `assistant:write`
-  - `chat:write`
-  - `im:history`
-  - `im:read`
-  - `im:write`
-
-- Install the app to your workspace and note down the "Bot User OAuth Token"
+You may need to refresh Slack with CMD+R or CTRL+R to pick up certain changes, such as enabling the chat tab
 
 ### 4. Set Environment Variables
 
@@ -75,27 +87,6 @@ EXA_API_KEY=your-exa-api-key
 ```
 
 Replace the placeholder values with your actual tokens.
-
-### 5. Deploy your app
-
-- If building locally, follow steps in the Local Development section to tunnel your local environment and then copy the tunnel URL.
-- If deploying to Vercel, follow the instructions in the Production Deployment section and copy your deployment URL.
-
-### 6. Update your Slack App configuration:
-
-Go to your [Slack App settings](https://api.slack.com/apps)
-
-- Select your app
-- Go to "Event Subscriptions"
-- Enable Events
-- Set the Request URL to either your local URL or your deployment URL: (e.g. `https://your-app.vercel.app/api/events`)
-- Save Changes
-- Under "Subscribe to bot events", add:
-  - `app_mention`
-  - `assistant_thread_started`
-  - `message:im`
-
-> Remember to include `/api/events` in the Request URL.
 
 ## Local Development
 
@@ -138,14 +129,11 @@ Make sure to modify the [subscription URL](./README.md/#enable-slack-events) to 
 5. Update your Slack App configuration:
    - Go to your [Slack App settings](https://api.slack.com/apps)
    - Select your app
+
    - Go to "Event Subscriptions"
-   - Enable Events
-   - Set the Request URL to: `https://your-app.vercel.app/api/events`
+      - Enable Events
+      - Set the Request URL to: `https://your-app.vercel.app/api/events`
    - Save Changes
-   - Under "Subscribe to bot events", add:
-     - `app_mention`
-     - `assistant_thread_started`
-     - `message:im`
 
 ## Usage
 
