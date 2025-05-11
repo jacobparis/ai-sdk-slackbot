@@ -96,6 +96,12 @@ export async function handleNewAssistantMessage(
       ? await getThread(channel, thread_ts, botUserId)
       : [{ role: "user", content: cleanText }];
       
+    // Add context about the current channel and thread
+    messages.unshift({
+      role: "system",
+      content: `You are in channel ${channel}${thread_ts ? ` and thread ${thread_ts}` : ''}. When scheduling messages, you must always include the channel parameter with the value "${channel}".`
+    });
+      
     console.log('Sending messages to AI:', JSON.stringify(messages, null, 2));
     let result = await generateResponse(messages, updateMessage);
     console.log('AI response:', result);
@@ -117,9 +123,31 @@ export async function handleNewAssistantMessage(
         unfurl_links: false,
       });
     } else {
+      // Extract thread_ts from the current message context
+      const currentThreadTs = thread_ts || event.ts;
+      
+      // If the result contains a scheduled message, ensure it includes the thread_ts
+      if (result.includes('scheduleMessage')) {
+        result = result.replace(
+          /scheduleMessage\(({[^}]+})\)/g,
+          (match, args) => {
+            const parsedArgs = JSON.parse(args);
+            // If no channel specified, use current channel
+            if (!parsedArgs.channel) {
+              parsedArgs.channel = channel;
+            }
+            // If in a thread and no thread_ts specified, use current thread
+            if (thread_ts && !parsedArgs.thread_ts) {
+              parsedArgs.thread_ts = thread_ts;
+            }
+            return `scheduleMessage(${JSON.stringify(parsedArgs)})`;
+          }
+        );
+      }
+
       await client.chat.postMessage({
         channel: channel,
-        thread_ts: thread_ts || event.ts,
+        thread_ts: currentThreadTs,
         text: result,
         unfurl_links: false,
         blocks: [

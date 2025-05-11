@@ -11,11 +11,15 @@ export const generateResponse = async (
 ) => {
   const systemPrompt = await getSystemPrompt();
 
+  // Extract channel and thread context from the first system message if it exists
+  const contextMessage = messages.find(m => m.role === 'system' && m.content.includes('You are in channel'));
+  const context = contextMessage?.content || '';
+
   console.log('Generating text with AI...');
   const { text, toolCalls, toolResults } = await generateText({
     model: anthropic("claude-3-7-sonnet-20250219"),
-    system: systemPrompt,
-    messages,
+    system: `${systemPrompt}\n\n${context}`,
+    messages: messages.filter(m => m.role !== 'system'),
     maxSteps: 10,
     toolChoice: "auto",
     tools: {
@@ -26,15 +30,19 @@ export const generateResponse = async (
           message: z.string().describe("The message to send"),
           delay: z.number().optional().describe("Delay in seconds before sending the message"),
           cron: z.string().optional().describe("Cron expression for recurring messages (e.g. '0 9 * * *' for daily at 9am)"),
+          thread_ts: z.string().optional().describe("The thread timestamp to reply in. If not provided, will use the current thread if in one."),
         }),
-        execute: async ({ channel, message, delay, cron }) => {
-          console.log('Executing scheduleMessage tool with args:', { channel, message, delay, cron });
+        execute: async ({ channel, message, delay, cron, thread_ts }) => {
+          if (!channel) {
+            throw new Error('Channel is required for scheduling messages');
+          }
+          console.log('Executing scheduleMessage tool with args:', { channel, message, delay, cron, thread_ts });
           const url = `${process.env.HOST_URL}/api/scheduled`;
           console.log('Scheduling message to:', url);
           updateStatus?.("is scheduling message to ");
           const result = await scheduleJob({
             url: url,
-            body: { channel, message },
+            body: { channel, message, thread_ts },
             delay,
             cron,
           });

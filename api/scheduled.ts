@@ -15,11 +15,12 @@ async function handler(req: Request) {
   }
 
   const body = await req.json()
-  const { channel, message } = body
+  const { message, channel, thread_ts } = body
 
   await client.chat.postMessage({
     channel,
     text: message,
+    thread_ts,
   })
 
   return new Response('OK', { status: 200 })
