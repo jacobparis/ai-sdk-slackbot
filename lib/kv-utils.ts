@@ -18,7 +18,8 @@ export async function storeThreadId(threadId: string) {
   await kv.expire(key, 60 * 60 * 24 * 30)
 }
 
-export async function isThreadTracked(threadId: string): Promise<boolean> {
+export async function isThreadTracked(threadId?: string): Promise<boolean> {
+  if (!threadId) return false
   const key = `thread:${threadId}`
   const result = await kv.get(key)
   return result === true

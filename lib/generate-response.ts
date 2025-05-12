@@ -16,7 +16,7 @@ export const generateResponse = async (
   const contextMessage = messages.find(m => m.role === 'system' && m.content.includes('You are in channel'));
   const context = contextMessage?.content || '';
 
-  const { text, toolCalls, toolResults } = await generateText({
+  const { text } = await generateText({
     model: anthropic("claude-3-7-sonnet-20250219"),
     system: `${systemPrompt}\n\n${context}`,
     messages: messages.filter(m => m.role !== 'system'),
@@ -33,18 +33,10 @@ export const generateResponse = async (
           thread_ts: z.string().optional().describe("Thread timestamp to reply in"),
         }),
         execute: async ({ channel, message, delay, cron, thread_ts }) => {
-          // If channel doesn't look like an ID, try to look it up
-          let channelId = channel;
-          if (!channel.startsWith('C') && !channel.startsWith('D') && !channel.startsWith('G')) {
-            const lookedUpId = await getChannelId(channel);
-            if (!lookedUpId) {
-              throw new Error(`Could not find channel: ${channel}`);
-            }
-            channelId = lookedUpId;
-          }
+          const channelId = await getChannelId(channel);
 
           const url = `${process.env.HOST_URL}/api/scheduled`;
-          updateStatus?.("is scheduling message to ");
+          updateStatus?.("*scheduling…*");
           const result = await scheduleJob({
             url: url,
             body: { channel: channelId, message, thread_ts },
@@ -60,7 +52,7 @@ export const generateResponse = async (
           prompt: z.string().describe("The new system prompt to use"),
         }),
         execute: async ({ prompt }) => {
-          updateStatus?.("is updating system prompt...");
+          updateStatus?.("*updating system prompt…*");
           await setSystemPrompt(prompt);
           return { success: true, message: "System prompt updated successfully" };
         },

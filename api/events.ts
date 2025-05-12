@@ -80,19 +80,20 @@ export async function POST(request: Request) {
 			ts?: string;
 			message?: { ts: string };
 		}
-
-		// Generate message ID early for logging
-		const messageId = event.type === "message" && event.subtype === "message_changed"
-			? `${event.channel}:${event.message?.ts}`
-			: `${event.channel}:${event.ts}`
-
+    
     const type = `${event.type}${event.subtype ? `/${event.subtype}` : ''}`
-
-		if (event.type !== "message" && event.type !== "app_mention") {
-			console.log(`[SKIP ${type}] ${messageId}`)
+    
+    // Generate message ID early for logging
+    const messageId = event.type === "message" && event.subtype === "message_changed"
+      ? `${event.channel}:${event.message?.ts}`
+      : `${event.channel}:${event.ts}`
+      
+		if (event.type !== "message") {
+      console.log(`[SKIP ${type}] ${messageId}`)
 			return new Response("ACK", { status: 200 })
 		}
 
+    
     if ("bot_id" in event) {
       return new Response("ACK", { status: 200 })
     }

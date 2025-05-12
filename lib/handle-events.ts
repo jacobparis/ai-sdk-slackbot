@@ -1,5 +1,29 @@
-import { WebClient } from '@slack/web-api';
 import { client } from './slack-utils';
+import { storeThreadId, isThreadTracked } from './kv-utils'
+import type { MessageEvent } from '@slack/web-api'
+import { getBotId, getThread } from "./slack-utils";
+import { generateResponse } from "./generate-response";
+import { CoreMessage } from "ai";
+
+export const eventHandlerMap = {
+  'message': handleMessageEvent,
+  'app_home_opened': handleAppHomeOpened,
+  'channel_archive': handleChannelArchive,
+  'channel_created': handleChannelCreated,
+  'channel_deleted': handleChannelDeleted,
+  'channel_rename': handleChannelRename,
+  'file_shared': handleFileShared,
+  'link_shared': handleLinkShared,
+  'member_joined_channel': handleMemberJoinedChannel,
+  'reaction_added': handleReactionAdded,
+  'user_change': handleUserChange,
+  'message_metadata_posted': handleMessageMetadataPosted,
+  'pin_added': handlePinAdded,
+  'emoji_changed': handleEmojiChanged,
+  'channel_history_changed': handleChannelHistoryChanged,
+  'team_access_granted': handleTeamAccessGranted,
+  'team_access_revoked': handleTeamAccessRevoked,
+}
 
 // Channel Events
 export async function handleChannelArchive(event: any) {
@@ -145,7 +169,6 @@ export async function handlePinAdded(event: any) {
 // Emoji Events
 export async function handleEmojiChanged(event: any) {
   console.log('Emoji changed:', event);
-  // Update any stored emoji information
 }
 
 // Message History Events
@@ -156,10 +179,76 @@ export async function handleChannelHistoryChanged(event: any) {
 // Team Access Events
 export async function handleTeamAccessGranted(event: any) {
   console.log('Team access granted:', event);
-  // Initialize any team-specific settings
 }
 
 export async function handleTeamAccessRevoked(event: any) {
   console.log('Team access revoked:', event);
-  // Clean up team-specific data
-} 
+}
+
+// Message Events
+export async function handleMessageEvent(event: MessageEvent, botUserId: string) {
+  console.log(event)
+ 
+  if (event.subtype) {
+    return
+  }
+  
+  if (event.bot_id ||!event.text) {
+    return
+  }
+ 
+  if (event.channel_type !== "im" && !event.text.includes(`<@${await getBotId()}>`)) {
+    if (!await isThreadTracked(event.thread_ts)) {
+      // If it's not a DM and not a tracked thread
+      return
+    }
+  }
+  
+  await storeThreadId(event.thread_ts ?? event.ts);
+
+  const { thread_ts, channel, text } = event;
+
+  const initialMessage = await client.chat.postMessage({
+    channel: channel,
+    thread_ts: thread_ts || event.ts,
+    text: "is thinking...",
+  });
+
+  if (!initialMessage || !initialMessage.ts)
+    throw new Error("Failed to post initial message");
+
+  const updateMessage = async (status: string) => {
+    await client.chat.update({
+      channel: channel,
+      ts: initialMessage.ts as string,
+      text: status,
+    });
+  };
+
+  try {
+    // Clean the message text by removing the bot mention
+    const cleanText = text.replace(`<@${botUserId}>`, '').trim();
+
+    const messages: CoreMessage[] = thread_ts 
+      ? await getThread(channel, thread_ts, botUserId)
+      : [{ role: "user", content: cleanText }];
+      
+    // Add context about the current channel and thread
+    messages.unshift({
+      role: "system",
+      content: `You are in channel ${channel}${thread_ts ? ` and thread ${thread_ts}` : ''}. When scheduling messages, you must always include the channel parameter with the value "${channel}" unless instructed otherwise.`
+    });
+      
+    let result = await generateResponse(messages, updateMessage);
+    
+    // Don't send empty messages
+    if (!result || result.trim() === '') {
+      await updateMessage("I'm not sure how to respond to that. Could you try rephrasing your question?");
+    } else {
+      await updateMessage(result);
+    }
+  } catch (error) {
+    console.error('Error handling message:', error);
+    await updateMessage("Sorry, I encountered an error while processing your message. Please try again.");
+  }
+}
