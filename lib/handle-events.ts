@@ -17,7 +17,6 @@ export async function handleChannelCreated(event: any) {
 }
 
 export async function handleChannelDeleted(event: any) {
-  console.log('Channel deleted:', event.channel);
   // Clean up any scheduled messages for this channel
 }
 
@@ -28,7 +27,6 @@ export async function handleChannelRename(event: any) {
 
 // File Events
 export async function handleFileShared(event: any) {
-  console.log('File shared:', event.file);
   // If it's a text file, offer to summarize it
   if (event.file.filetype === 'text') {
     await client.chat.postMessage({
@@ -41,7 +39,6 @@ export async function handleFileShared(event: any) {
 
 // Link Events
 export async function handleLinkShared(event: any) {
-  console.log('Link shared:', event.links);
   // Offer to fetch and summarize the linked content
   await client.chat.postMessage({
     channel: event.channel,
@@ -62,7 +59,6 @@ export async function handleMemberJoinedChannel(event: any) {
 
 // Reaction Events
 export async function handleReactionAdded(event: any) {
-  console.log('Reaction added:', { reaction: event.reaction, user: event.user });
   // If someone reacts with a specific emoji, trigger an action
   if (event.reaction === 'calendar') {
     await client.chat.postMessage({
@@ -81,7 +77,6 @@ export async function handleUserChange(event: any) {
 
 // Message Metadata Events
 export async function handleMessageMetadataPosted(event: any) {
-  console.log('Message metadata posted:', event);
   // Handle any custom metadata attached to messages
 }
 
@@ -139,7 +134,6 @@ export async function handleAppHomeOpened(event: any) {
 
 // Pin Events
 export async function handlePinAdded(event: any) {
-  console.log('Pin added:', event);
   // If someone pins a message, offer to create a summary
   await client.chat.postMessage({
     channel: event.channel_id,
@@ -156,7 +150,6 @@ export async function handleEmojiChanged(event: any) {
 
 // Message History Events
 export async function handleChannelHistoryChanged(event: any) {
-  console.log('Channel history changed:', event);
   // Handle bulk updates to channel history
 }
 

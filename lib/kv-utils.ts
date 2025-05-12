@@ -13,7 +13,6 @@ export async function setSystemPrompt(prompt: string) {
 
 export async function storeThreadId(threadId: string) {
   const key = `thread:${threadId}`
-  console.log('Storing thread ID:', { key, threadId })
   await kv.set(key, true)
   // Set expiration to 30 days
   await kv.expire(key, 60 * 60 * 24 * 30)
@@ -22,6 +21,14 @@ export async function storeThreadId(threadId: string) {
 export async function isThreadTracked(threadId: string): Promise<boolean> {
   const key = `thread:${threadId}`
   const result = await kv.get(key)
-  console.log('Checking thread ID:', { key, threadId, result })
   return result === true
+}
+
+export async function isMessageProcessed(messageId: string): Promise<boolean> {
+  const result = await kv.get(`processed:${messageId}`);
+  return result !== null;
+}
+
+export async function markMessageProcessed(messageId: string): Promise<void> {
+  await kv.set(`processed:${messageId}`, 'true', { ex: 60 * 60 * 24 }); // 24 hour TTL
 }

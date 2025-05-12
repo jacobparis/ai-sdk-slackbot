@@ -4,6 +4,7 @@ import { z } from "zod";
 import { exa } from "./utils";
 import { getSystemPrompt, setSystemPrompt } from "./kv-utils";
 import { scheduleJob } from "./qstash-utils";
+import { getChannelId } from "./slack-utils"
 
 export const generateResponse = async (
   messages: CoreMessage[],
@@ -15,7 +16,6 @@ export const generateResponse = async (
   const contextMessage = messages.find(m => m.role === 'system' && m.content.includes('You are in channel'));
   const context = contextMessage?.content || '';
 
-  console.log('Generating text with AI...');
   const { text, toolCalls, toolResults } = await generateText({
     model: anthropic("claude-3-7-sonnet-20250219"),
     system: `${systemPrompt}\n\n${context}`,
@@ -24,29 +24,33 @@ export const generateResponse = async (
     toolChoice: "auto",
     tools: {
       scheduleMessage: tool({
-        description: "Schedule a message to be sent to a Slack channel at a later time",
+        description: "Schedule a message to be sent later",
         parameters: z.object({
-          channel: z.string().describe("The Slack channel ID to send the message to"),
+          channel: z.string().describe("The channel to send the message to"),
           message: z.string().describe("The message to send"),
-          delay: z.number().optional().describe("Delay in seconds before sending the message"),
-          cron: z.string().optional().describe("Cron expression for recurring messages (e.g. '0 9 * * *' for daily at 9am)"),
-          thread_ts: z.string().optional().describe("The thread timestamp to reply in. If not provided, will use the current thread if in one."),
+          delay: z.number().optional().describe("Delay in seconds before sending"),
+          cron: z.string().optional().describe("Cron expression for recurring messages"),
+          thread_ts: z.string().optional().describe("Thread timestamp to reply in"),
         }),
         execute: async ({ channel, message, delay, cron, thread_ts }) => {
-          if (!channel) {
-            throw new Error('Channel is required for scheduling messages');
+          // If channel doesn't look like an ID, try to look it up
+          let channelId = channel;
+          if (!channel.startsWith('C') && !channel.startsWith('D') && !channel.startsWith('G')) {
+            const lookedUpId = await getChannelId(channel);
+            if (!lookedUpId) {
+              throw new Error(`Could not find channel: ${channel}`);
+            }
+            channelId = lookedUpId;
           }
-          console.log('Executing scheduleMessage tool with args:', { channel, message, delay, cron, thread_ts });
+
           const url = `${process.env.HOST_URL}/api/scheduled`;
-          console.log('Scheduling message to:', url);
           updateStatus?.("is scheduling message to ");
           const result = await scheduleJob({
             url: url,
-            body: { channel, message, thread_ts },
+            body: { channel: channelId, message, thread_ts },
             delay,
             cron,
           });
-          console.log('Schedule job result:', result);
           return { success: true, messageId: result.messageId };
         },
       }),
@@ -74,7 +78,6 @@ export const generateResponse = async (
             ),
         }),
         execute: async ({ query, specificDomain }) => {
-          console.log('Executing searchWeb tool with args:', { query, specificDomain });
           updateStatus?.(`is searching the web for ${query}...`);
           const { results } = await exa.searchAndContents(query, {
             livecrawl: "always",
@@ -92,12 +95,9 @@ export const generateResponse = async (
           };
         },
       }),
+      
     },
   });
 
-  console.log('Tool calls:', toolCalls);
-  console.log('Tool results:', toolResults);
-
-  // Convert markdown to Slack mrkdwn format
-  return text.replace(/\[(.*?)\]\((.*?)\)/g, "<$2|$1>").replace(/\*\*/g, "*");
+  return text;
 };

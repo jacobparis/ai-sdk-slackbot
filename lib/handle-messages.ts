@@ -43,8 +43,6 @@ export async function handleNewAssistantMessage(
   event: GenericMessageEvent,
   botUserId: string,
 ) {
-  console.log('Handling new message:', JSON.stringify(event, null, 2));
-  
   // Skip bot messages and messages without text
   if (
     event.bot_id ||
@@ -52,21 +50,13 @@ export async function handleNewAssistantMessage(
     !event.text ||
     (event.subtype === 'message_changed' && 'message' in event && (event.message as GenericMessageEvent)?.bot_id)
   ) {
-    console.log('Skipping message:', { 
-      bot_id: event.bot_id, 
-      bot_profile: event.bot_profile,
-      has_text: !!event.text,
-      subtype: event.subtype
-    });
     return;
   }
 
   const { thread_ts, channel, text } = event;
-  console.log('Processing message:', { channel, thread_ts, text });
 
   // For channel messages (not in threads), only respond if we're mentioned
   if (event.channel_type === 'channel' && !thread_ts && !text.includes(`<@${botUserId}>`)) {
-    console.log('Skipping channel message without mention');
     return;
   }
 
@@ -90,7 +80,6 @@ export async function handleNewAssistantMessage(
   try {
     // Clean the message text by removing the bot mention
     const cleanText = text.replace(`<@${botUserId}>`, '').trim();
-    console.log('Cleaned message text:', cleanText);
 
     const messages: CoreMessage[] = thread_ts 
       ? await getThread(channel, thread_ts, botUserId)
@@ -102,20 +91,15 @@ export async function handleNewAssistantMessage(
       content: `You are in channel ${channel}${thread_ts ? ` and thread ${thread_ts}` : ''}. When scheduling messages, you must always include the channel parameter with the value "${channel}".`
     });
       
-    console.log('Sending messages to AI:', JSON.stringify(messages, null, 2));
     let result = await generateResponse(messages, updateMessage);
-    console.log('AI response:', result);
     
     // If the response contains a function call, retry the generation
     if (result.includes('<function=')) {
-      console.log('Function call detected, retrying generation');
       result = await generateResponse(messages, updateMessage);
-      console.log('Retry AI response:', result);
     }
     
     // Don't send empty messages
     if (!result || result.trim() === '') {
-      console.log('Empty response received, sending fallback message');
       await client.chat.postMessage({
         channel: channel,
         thread_ts: thread_ts || event.ts,

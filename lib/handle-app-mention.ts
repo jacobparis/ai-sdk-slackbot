@@ -30,9 +30,7 @@ export async function handleNewAppMention(
   event: AppMentionEvent,
   botUserId: string,
 ) {
-  console.log("Handling app mention");
   if (event.bot_id || event.bot_profile) {
-    console.log("Skipping app mention");
     return;
   }
 
@@ -42,26 +40,15 @@ export async function handleNewAppMention(
   try {
     // Clean the message text by removing the bot mention
     const cleanText = event.text.replace(`<@${botUserId}>`, '').trim();
-    console.log('Cleaned message text:', cleanText);
 
     const messages: CoreMessage[] = thread_ts 
       ? await getThread(channel, thread_ts, botUserId)
       : [{ role: "user", content: cleanText }];
-
-    let attempts = 0;
-    let result = "";
-    while (attempts < 3) {
-      result = await generateResponse(messages, updateMessage);
-      if (!result.includes("<function") && result.trim() !== '') {
-        break;
-      }
-      attempts++;
-      await updateMessage("Retrying...");
-    }
+      
+    const result = await generateResponse(messages, updateMessage);
     
     // Don't send empty messages
     if (!result || result.trim() === '') {
-      console.log('Empty response received, sending fallback message');
       await client.chat.postMessage({
         channel: channel,
         thread_ts: thread_ts || event.ts,
@@ -71,7 +58,6 @@ export async function handleNewAppMention(
     } else if (result.includes("<function")) {
 
     } else {
-
       await client.chat.postMessage({
         channel: channel,
         thread_ts: thread_ts || event.ts,

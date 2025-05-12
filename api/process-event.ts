@@ -3,7 +3,7 @@ import { handleNewAppMention } from '../lib/handle-app-mention'
 import { handleNewAssistantMessage } from '../lib/handle-messages'
 import { assistantThreadMessage } from '../lib/handle-messages'
 import * as eventHandlers from '../lib/handle-events'
-import { storeThreadId, isThreadTracked } from '../lib/kv-utils'
+import { storeThreadId, isThreadTracked, isMessageProcessed, markMessageProcessed } from '../lib/kv-utils'
 
 export const config = {
   api: {
@@ -21,7 +21,26 @@ async function handler(req: Request) {
   const body = await req.json()
   const { event, botUserId } = body
 
+  const type = `${event.type}${event.subtype ? `/${event.subtype}` : ''}`
+  
   try {
+    // Generate message ID
+    const messageId = event.type === "message" && event.subtype === "message_changed"
+      ? `${event.channel}:${event.message?.ts}`
+      : `${event.channel}:${event.ts}`
+
+    // Check idempotency first
+    if (await isMessageProcessed(messageId)) {
+      console.log(`[SKIP ${type}] ${messageId} - already processed`)
+      return new Response("Already processed", { status: 200 })
+    }
+
+    // Mark as processed before processing to prevent race conditions
+    await markMessageProcessed(messageId)
+
+    // Log the event we're about to process
+    console.log(`[PROCESS ${type}] ${messageId} ${event.text || ''}`)
+
     // Handle core message events
     if (event.type === "app_mention") {
       // Store thread ID if this is a threaded mention
@@ -58,7 +77,6 @@ async function handler(req: Request) {
       // If it's in a thread, check if we're tracking it
       else if (event.thread_ts) {
         const isTracked = await isThreadTracked(event.thread_ts)
-        console.log('Thread tracking check:', { thread_ts: event.thread_ts, isTracked })
         if (isTracked) {
           await handleNewAssistantMessage(event, botUserId)
         }
@@ -91,8 +109,8 @@ async function handler(req: Request) {
     }
 
     return new Response('Success!', { status: 200 })
-  } catch (error) {
-    console.error("Error processing event", error)
+  } catch (error: any) {
+    console.error(`[ERROR ${type}] ${error.message}`, error)
     return new Response("Error processing event", { status: 500 })
   }
 }

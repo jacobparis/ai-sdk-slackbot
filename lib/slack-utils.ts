@@ -114,3 +114,26 @@ export const getBotId = async () => {
   }
   return botUserId;
 };
+
+export async function getChannelId(channelName: string): Promise<string | null> {
+  try {
+    // Remove # if present
+    const name = channelName.replace(/^#/, '')
+    
+    // List all channels
+    const result = await client.conversations.list({
+      types: 'public_channel,private_channel',
+      limit: 1000,
+    })
+
+    // Find the channel by name
+    const channel = result.channels?.find(
+      c => c.name === name || c.name_normalized === name
+    )
+
+    return channel?.id || null
+  } catch (error) {
+    console.error('Error looking up channel:', error)
+    return null
+  }
+}
